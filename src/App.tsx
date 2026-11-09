@@ -2,6 +2,8 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthGuard } from './components/layout/AuthGuard'
 import { AppShell } from './components/layout/AppShell'
 import LoginPage from './pages/LoginPage'
+import ItemFormPage from './pages/ItemFormPage'
+import ItemDetailPage from './pages/ItemDetailPage'
 
 function Placeholder({ title }: { title: string }) {
   return (
@@ -24,18 +26,9 @@ export default function App() {
           }
         >
           <Route index element={<Placeholder title="Lista articoli" />} />
-          <Route
-            path="items/new"
-            element={<Placeholder title="Nuovo articolo" />}
-          />
-          <Route
-            path="items/:id"
-            element={<Placeholder title="Dettaglio articolo" />}
-          />
-          <Route
-            path="items/:id/edit"
-            element={<Placeholder title="Modifica articolo" />}
-          />
+          <Route path="items/new" element={<ItemFormPage />} />
+          <Route path="items/:id" element={<ItemDetailPage />} />
+          <Route path="items/:id/edit" element={<ItemFormPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
