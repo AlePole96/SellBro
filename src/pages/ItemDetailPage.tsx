@@ -1,6 +1,7 @@
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useItem, useItems } from '../hooks/useItems'
 import { Badge, Button, toast } from '../components/ui'
+import { PhotoSection } from '../components/photos/PhotoSection'
 import { buildVintedDescription, buildSubitoDescription, copyToClipboard } from '../lib/clipboard'
 import {
   CLOTHING_MEASURES,
@@ -114,6 +115,8 @@ export default function ItemDetailPage() {
           </Badge>
         </div>
       </div>
+
+      <PhotoSection itemId={item.id} />
 
       <PriceRow item={item} />
       <MeasureRow item={item} />

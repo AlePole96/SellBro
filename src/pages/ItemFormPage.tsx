@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ItemForm } from '../components/items/ItemForm'
+import { PhotoSection } from '../components/photos/PhotoSection'
 import { useItem, useItems } from '../hooks/useItems'
 import { toast } from '../components/ui'
 
@@ -10,6 +11,11 @@ export default function ItemFormPage() {
   const { item, loading } = useItem(id)
   const { createItem, updateItem } = useItems()
   const [submitting, setSubmitting] = useState(false)
+  const [photoCount, setPhotoCount] = useState(0)
+
+  const handlePhotoCount = useCallback((count: number) => {
+    setPhotoCount(count)
+  }, [])
 
   if (id && loading) {
     return (
@@ -53,13 +59,18 @@ export default function ItemFormPage() {
   }
 
   return (
-    <div>
-      <h1 className="mb-6 text-xl font-semibold">
+    <div className="space-y-6">
+      <h1 className="text-xl font-semibold">
         {id ? 'Modifica articolo' : 'Nuovo articolo'}
       </h1>
+
+      {id && (
+        <PhotoSection itemId={id} onCountChange={handlePhotoCount} />
+      )}
+
       <ItemForm
         initial={item ?? undefined}
-        photoCount={0}
+        photoCount={photoCount}
         onSubmit={handleSubmit}
         submitting={submitting}
       />
