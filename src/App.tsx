@@ -1,0 +1,10 @@
+export default function App() {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-base">
+      <div className="text-center">
+        <h1 className="text-3xl font-bold text-primary">SellBro</h1>
+        <p className="mt-2 text-muted">Gestione rivendita articoli usati</p>
+      </div>
+    </div>
+  )
+}
