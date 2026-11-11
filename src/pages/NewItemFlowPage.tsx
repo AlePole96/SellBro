@@ -62,6 +62,7 @@ export interface FlowFormData {
   price_listed: number | null
   platforms: Platform[]
   notes: string
+  hashtags: string[]
 }
 
 type Step = 'photos' | 'analyzing' | 'form' | 'ready'
@@ -78,6 +79,7 @@ const INITIAL_FORM: FlowFormData = {
   price_listed: null,
   platforms: [],
   notes: '',
+  hashtags: [],
 }
 
 export default function NewItemFlowPage() {
@@ -157,6 +159,7 @@ export default function NewItemFlowPage() {
         price_listed: result.suggested_price_max,
         platforms: [],
         notes: '',
+        hashtags: Array.isArray(result.hashtags) ? result.hashtags : [],
       })
       setStep('form')
     } catch (err) {

@@ -5,6 +5,7 @@ import type {
   PhotoshootState,
 } from '../../pages/NewItemFlowPage'
 import { copyToClipboard } from '../../lib/clipboard'
+import { buildHashtags, formatHashtags } from '../../lib/hashtags'
 import { PHOTOSHOOT_COUNT } from '../../lib/photoshoot'
 import { toast } from '../ui'
 
@@ -28,6 +29,7 @@ function buildListingText(
   data: FlowFormData,
   bullet: string,
   closing: string,
+  footer = '',
 ): string {
   const header = [data.brand, data.title].filter(Boolean).join(' — ')
   const details = [
@@ -39,13 +41,19 @@ function buildListingText(
     .map((line) => `${bullet}${line}`)
     .join('\n')
 
-  return [header, data.description.trim(), details, closing]
+  return [header, data.description.trim(), details, closing, footer]
     .filter(Boolean)
     .join('\n\n')
 }
 
 function buildVintedText(data: FlowFormData): string {
-  return buildListingText(data, '', VINTED_CLOSING)
+  const hashtags = buildHashtags({
+    category: data.category,
+    title: data.title,
+    brand: data.brand,
+    suggested: data.hashtags,
+  })
+  return buildListingText(data, '', VINTED_CLOSING, formatHashtags(hashtags))
 }
 
 function buildSubitoText(data: FlowFormData): string {

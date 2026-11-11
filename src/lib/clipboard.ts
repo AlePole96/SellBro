@@ -1,4 +1,5 @@
 import type { Item, Category } from './types'
+import { buildHashtags, formatHashtags } from './hashtags'
 
 type MeasureKey = keyof Item & `measure_${string}`
 
@@ -62,6 +63,9 @@ export function buildVintedDescription(item: Item): string {
     lines.push('')
     lines.push(item.notes)
   }
+
+  lines.push('')
+  lines.push(formatHashtags(buildHashtags(item)))
 
   return lines.join('\n')
 }

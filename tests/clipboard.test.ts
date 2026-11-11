@@ -101,6 +101,12 @@ describe('buildVintedDescription', () => {
     const desc = buildVintedDescription(item)
     expect(desc.startsWith('Giacca in pelle')).toBe(true)
   })
+
+  it('ends with ten hashtags', () => {
+    const lastLine = buildVintedDescription(clothingItem).split('\n').at(-1)
+    expect(lastLine?.split(' ')).toHaveLength(10)
+    expect(lastLine).toContain('#zara #giacca #pelle #abbigliamento')
+  })
 })
 
 describe('buildSubitoDescription', () => {
@@ -118,5 +124,10 @@ describe('buildSubitoDescription', () => {
   it('includes bullet for condition', () => {
     const desc = buildSubitoDescription(clothingItem)
     expect(desc).toContain('▸ Condizioni: Ottime condizioni')
+  })
+
+  it('has no hashtags', () => {
+    const desc = buildSubitoDescription(clothingItem)
+    expect(desc).not.toContain('#')
   })
 })

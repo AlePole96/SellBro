@@ -17,6 +17,7 @@ export interface AIAnalysisResult {
   suggested_price_max: number
   confidence: 'high' | 'medium' | 'low'
   missing_fields: string[]
+  hashtags?: string[]
 }
 
 interface GeminiResponse {
@@ -102,7 +103,8 @@ Schema JSON richiesto:
   "suggested_price_min": numero in EUR, prezzo minimo consigliato per l'usato,
   "suggested_price_max": numero in EUR, prezzo massimo consigliato,
   "confidence": "high" | "medium" | "low",
-  "missing_fields": ["lista di campi che non puoi determinare dalla foto, es. 'brand', 'size'"]
+  "missing_fields": ["lista di campi che non puoi determinare dalla foto, es. 'brand', 'size'"],
+  "hashtags": ["10 hashtag per l'annuncio Vinted, vedi regole sotto"]
 }
 
 Regole per "description_it":
@@ -111,6 +113,12 @@ Regole per "description_it":
 - Descrivi solo ciò che si vede nelle foto: non inventare materiali, caratteristiche tecniche, accessori inclusi o storia d'uso.
 - Non citare taglia, condizioni, difetti, prezzo o spedizione: vengono aggiunti a parte.
 - Niente saluti iniziali, niente invito finale a scrivere, niente emoji, niente elenchi puntati, niente slogan pubblicitari.
+
+Regole per "hashtags":
+- Esattamente 10 parole chiave che un acquirente cercherebbe su Vinted, senza il simbolo #, in minuscolo, senza spazi né accenti.
+- In italiano; sono ammessi i termini inglesi di uso comune (es. vintage, streetwear, gaming).
+- Dal più specifico al più generico: tipo di articolo, marca se visibile, colore, stile, occasione d'uso, stagione, poi termini di ricerca più ampi.
+- Solo termini coerenti con ciò che si vede nelle foto e con la descrizione; niente taglia, prezzo o condizioni.
 
 Basa il prezzo sulla categoria, marca, condizioni e mercato italiano dell'usato.`
 
