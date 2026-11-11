@@ -30,11 +30,12 @@ npm install
 cp .env.example .env
 ```
 
-Fill in your Supabase project URL and anon key:
+Fill in your Supabase project URL and anon key, plus a Google Gemini API key (used by the AI photo analysis):
 
 ```
 VITE_SUPABASE_URL=https://xxx.supabase.co
 VITE_SUPABASE_ANON_KEY=eyJ...
+VITE_GEMINI_API_KEY=...
 ```
 
 ### 3. Database setup
@@ -86,6 +87,7 @@ The GitHub Action (`.github/workflows/deploy.yml`) runs on push to `main`:
 | `FTP_SERVER_DIR` | Remote directory (e.g. `/public_html/sell/`) |
 | `VITE_SUPABASE_URL` | Supabase project URL |
 | `VITE_SUPABASE_ANON_KEY` | Supabase anon key |
+| `VITE_GEMINI_API_KEY` | Google Gemini API key (ends up in the public bundle: restrict it to the site domain) |
 
 ## Project structure
 
