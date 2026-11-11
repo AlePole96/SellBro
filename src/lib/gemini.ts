@@ -3,6 +3,7 @@ import type { Category, Condition } from './types'
 const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY as string
 const GEMINI_URL =
   'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent'
+const TIMEOUT_MS = 30_000
 
 export interface AIAnalysisResult {
   title: string
@@ -16,6 +17,10 @@ export interface AIAnalysisResult {
   suggested_price_max: number
   confidence: 'high' | 'medium' | 'low'
   missing_fields: string[]
+}
+
+interface GeminiResponse {
+  candidates?: { content?: { parts?: { text?: string }[] } }[]
 }
 
 async function fileToBase64(file: File): Promise<string> {
@@ -37,7 +42,7 @@ async function fetchWithRetry(
 ): Promise<Response> {
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), 30_000)
+    const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS)
 
     try {
       const response = await fetch(url, {
@@ -89,7 +94,7 @@ Schema JSON richiesto:
 {
   "title": "titolo in italiano per l'annuncio, breve e accattivante",
   "category": "vestiti" | "tech" | "giochi",
-  "description_it": "descrizione in italiano per l'annuncio, 2-3 frasi",
+  "description_it": "testo dell'annuncio in italiano, vedi regole sotto",
   "brand": "marca se visibile, altrimenti null",
   "condition": "Nuovo con cartellino" | "Come nuovo" | "Ottime condizioni" | "Buone condizioni" | "Discrete condizioni",
   "size": "taglia/misura se visibile (es. M, L, 42), altrimenti null",
@@ -100,35 +105,36 @@ Schema JSON richiesto:
   "missing_fields": ["lista di campi che non puoi determinare dalla foto, es. 'brand', 'size'"]
 }
 
+Regole per "description_it":
+- 4-6 frasi (circa 70-110 parole), in prima persona, con il tono caldo e spontaneo di un privato che vende un oggetto a cui tiene, non di un negozio.
+- Racconta cosa rende bello o utile l'articolo, per chi è perfetto e in quali occasioni usarlo: aiuta chi legge a immaginarsi mentre lo usa o lo indossa.
+- Descrivi solo ciò che si vede nelle foto: non inventare materiali, caratteristiche tecniche, accessori inclusi o storia d'uso.
+- Non citare taglia, condizioni, difetti, prezzo o spedizione: vengono aggiunti a parte.
+- Niente saluti iniziali, niente invito finale a scrivere, niente emoji, niente elenchi puntati, niente slogan pubblicitari.
+
 Basa il prezzo sulla categoria, marca, condizioni e mercato italiano dell'usato.`
 
-  const body = {
-    contents: [
-      {
-        parts: [{ text: prompt }, ...imageParts],
+  const response = await fetchWithRetry(GEMINI_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-goog-api-key': GEMINI_API_KEY,
+    },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: prompt }, ...imageParts] }],
+      generationConfig: {
+        temperature: 0.5,
+        responseMimeType: 'application/json',
       },
-    ],
-    generationConfig: {
-      temperature: 0.3,
-      responseMimeType: 'application/json',
-    },
-  }
-
-  const response = await fetchWithRetry(
-    `${GEMINI_URL}?key=${GEMINI_API_KEY}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    },
-  )
+    }),
+  })
 
   if (!response.ok) {
     const err = await response.text()
     throw new Error(`Errore Gemini API: ${response.status} — ${err}`)
   }
 
-  const data = await response.json()
+  const data = (await response.json()) as GeminiResponse
   const text = data.candidates?.[0]?.content?.parts?.[0]?.text
   if (!text) {
     throw new Error('Nessuna risposta da Gemini')

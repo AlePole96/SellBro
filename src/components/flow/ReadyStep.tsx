@@ -1,44 +1,146 @@
 import { useState } from 'react'
-import type { FlowFormData } from '../../pages/NewItemFlowPage'
+import type {
+  FlowFormData,
+  PhotoSaveStatus,
+  PhotoshootState,
+} from '../../pages/NewItemFlowPage'
 import { copyToClipboard } from '../../lib/clipboard'
+import { PHOTOSHOOT_COUNT } from '../../lib/photoshoot'
 import { toast } from '../ui'
 
 interface Props {
   formData: FlowFormData
   itemId: string
+  photoshoot: PhotoshootState
+  photoSave: PhotoSaveStatus
+  onRetryPhotoshoot: () => void
   onNewItem: () => void
   onViewItem: () => void
 }
 
-function buildVintedText(data: FlowFormData): string {
-  const lines: string[] = []
+const VINTED_CLOSING =
+  'Spedisco velocemente e con cura. Se hai domande o vuoi vedere altre foto scrivimi pure, rispondo volentieri! Dai un\'occhiata anche agli altri articoli del mio armadio: prendendone più di uno risparmi sulla spedizione.'
+
+const SUBITO_CLOSING =
+  'Ritiro a mano oppure spedizione, come preferisci. Il prezzo è leggermente trattabile per chi è davvero interessato. Scrivimi in chat per qualsiasi domanda o per altre foto, rispondo subito!'
+
+function buildListingText(
+  data: FlowFormData,
+  bullet: string,
+  closing: string,
+): string {
   const header = [data.brand, data.title].filter(Boolean).join(' — ')
-  lines.push(header)
-  if (data.size) lines.push(`Taglia: ${data.size}`)
-  lines.push(`Condizioni: ${data.condition}`)
-  lines.push(`Difetti: ${data.defects || 'nessuno'}`)
-  if (data.description) {
-    lines.push('')
-    lines.push(data.description)
-  }
-  return lines.join('\n')
+  const details = [
+    data.size && `Taglia: ${data.size}`,
+    `Condizioni: ${data.condition}`,
+    `Difetti: ${data.defects || 'nessuno da segnalare'}`,
+  ]
+    .filter(Boolean)
+    .map((line) => `${bullet}${line}`)
+    .join('\n')
+
+  return [header, data.description.trim(), details, closing]
+    .filter(Boolean)
+    .join('\n\n')
+}
+
+function buildVintedText(data: FlowFormData): string {
+  return buildListingText(data, '', VINTED_CLOSING)
 }
 
 function buildSubitoText(data: FlowFormData): string {
-  const lines: string[] = []
-  const header = [data.brand, data.title].filter(Boolean).join(' — ')
-  lines.push(header)
-  lines.push('')
-  if (data.size) lines.push(`▸ Taglia: ${data.size}`)
-  lines.push(`▸ Condizioni: ${data.condition}`)
-  lines.push(`▸ Difetti: ${data.defects || 'nessuno'}`)
-  if (data.description) {
-    lines.push('')
-    lines.push(data.description)
-  }
-  lines.push('')
-  lines.push('Prezzo trattabile. Spedizione o ritiro in zona.')
-  return lines.join('\n')
+  return buildListingText(data, '▸ ', SUBITO_CLOSING)
+}
+
+const PHOTO_SAVE_LABELS: Record<PhotoSaveStatus, string | null> = {
+  idle: null,
+  saving: 'Salvo le foto nell\'articolo...',
+  saved: 'Foto salvate nell\'articolo',
+  error: 'Alcune foto non sono state salvate nell\'articolo',
+}
+
+function PhotoshootGallery({
+  photoshoot,
+  photoSave,
+  onRetry,
+}: {
+  photoshoot: PhotoshootState
+  photoSave: PhotoSaveStatus
+  onRetry: () => void
+}) {
+  const saveLabel = PHOTO_SAVE_LABELS[photoSave]
+
+  return (
+    <div className="rounded-xl border border-edge bg-surface p-4">
+      <div className="mb-3 flex items-center gap-2">
+        <span className="text-sm font-semibold text-content">Foto da studio</span>
+        <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-semibold text-primary">
+          AI
+        </span>
+      </div>
+
+      {photoshoot.status === 'loading' && (
+        <>
+          <div className="grid grid-cols-3 gap-2">
+            {Array.from({ length: PHOTOSHOOT_COUNT }, (_, i) => (
+              <div
+                key={i}
+                className="aspect-square animate-pulse rounded-lg bg-raised"
+                style={{ animationDelay: `${i * 0.2}s` }}
+              />
+            ))}
+          </div>
+          <p className="mt-3 text-center text-xs text-muted">
+            Sto preparando {PHOTOSHOOT_COUNT} scatti su fondale da studio. La prima volta può volerci un minuto.
+          </p>
+        </>
+      )}
+
+      {photoshoot.status === 'done' && (
+        <>
+          <div className="grid grid-cols-3 gap-2">
+            {photoshoot.photos.map((photo, i) => (
+              <a
+                key={photo.url}
+                href={photo.url}
+                download={photo.file.name}
+                aria-label={`Scarica foto da studio ${i + 1}`}
+                className="group relative block aspect-square overflow-hidden rounded-lg ring-1 ring-edge"
+              >
+                <img
+                  src={photo.url}
+                  alt={`Foto da studio ${i + 1}`}
+                  className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                />
+                <span className="absolute inset-x-0 bottom-0 bg-base/75 py-1 text-center text-[11px] font-medium text-content">
+                  Scarica
+                </span>
+              </a>
+            ))}
+          </div>
+          <p className="mt-3 text-xs text-muted">
+            L'oggetto è quello delle tue foto, cambia solo lo sfondo. Controlla che il contorno sia pulito e tieni nell'annuncio anche le foto reali.
+          </p>
+        </>
+      )}
+
+      {photoshoot.status === 'error' && (
+        <div className="rounded-lg border border-warning/40 bg-warning/5 p-3">
+          <p className="text-xs text-muted">
+            {photoshoot.error ?? 'Generazione delle foto non riuscita'}
+          </p>
+          <button
+            onClick={onRetry}
+            className="mt-2 rounded-lg bg-raised px-3 py-1.5 text-xs font-medium text-content transition-colors hover:bg-primary/20"
+          >
+            Riprova
+          </button>
+        </div>
+      )}
+
+      {saveLabel && <p className="mt-2 text-[11px] text-faint">{saveLabel}</p>}
+    </div>
+  )
 }
 
 function CopyCard({
@@ -83,7 +185,14 @@ function CopyCard({
   )
 }
 
-export function ReadyStep({ formData, onNewItem, onViewItem }: Props) {
+export function ReadyStep({
+  formData,
+  photoshoot,
+  photoSave,
+  onRetryPhotoshoot,
+  onNewItem,
+  onViewItem,
+}: Props) {
   const vintedText = buildVintedText(formData)
   const subitoText = buildSubitoText(formData)
 
@@ -128,6 +237,14 @@ export function ReadyStep({ formData, onNewItem, onViewItem }: Props) {
           )}
         </div>
       </div>
+
+      {photoshoot.status !== 'idle' && (
+        <PhotoshootGallery
+          photoshoot={photoshoot}
+          photoSave={photoSave}
+          onRetry={onRetryPhotoshoot}
+        />
+      )}
 
       {/* Copy cards */}
       <CopyCard

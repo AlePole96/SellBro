@@ -1,15 +1,54 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { analyzeItemPhotos, type AIAnalysisResult } from '../lib/gemini'
+import { generatePhotoshootImages } from '../lib/photoshoot'
 import { compressImage } from '../lib/compression'
 import { useItems } from '../hooks/useItems'
+import { uploadItemPhoto } from '../hooks/usePhotos'
 import { useAuth } from '../hooks/useAuth'
 import { toast } from '../components/ui'
 import { PhotoCaptureStep } from '../components/flow/PhotoCaptureStep'
 import { AIAnalysisStep } from '../components/flow/AIAnalysisStep'
 import { SmartFormStep } from '../components/flow/SmartFormStep'
 import { ReadyStep } from '../components/flow/ReadyStep'
-import type { Category, Condition, Platform } from '../lib/types'
+import type { Category, Condition, PhotoType, Platform } from '../lib/types'
+
+export interface PhotoshootState {
+  status: 'idle' | 'loading' | 'done' | 'error'
+  photos: { file: File; url: string }[]
+  error: string | null
+}
+
+export type PhotoSaveStatus = 'idle' | 'saving' | 'saved' | 'error'
+
+const IDLE_PHOTOSHOOT: PhotoshootState = {
+  status: 'idle',
+  photos: [],
+  error: null,
+}
+
+async function uploadPhotos(
+  itemId: string,
+  photos: File[],
+  photoType: PhotoType,
+  startPosition: number,
+): Promise<boolean> {
+  let allSaved = true
+  for (const [i, file] of photos.entries()) {
+    try {
+      const { error } = await uploadItemPhoto(
+        itemId,
+        file,
+        photoType,
+        startPosition + i,
+      )
+      if (error) allSaved = false
+    } catch {
+      allSaved = false
+    }
+  }
+  return allSaved
+}
 
 export interface FlowFormData {
   title: string
@@ -46,12 +85,51 @@ export default function NewItemFlowPage() {
   const { createItem } = useItems()
   const { user } = useAuth()
   const [step, setStep] = useState<Step>('photos')
-  const [, setFiles] = useState<File[]>([])
+  const [files, setFiles] = useState<File[]>([])
   const [previews, setPreviews] = useState<string[]>([])
   const [aiResult, setAiResult] = useState<AIAnalysisResult | null>(null)
   const [formData, setFormData] = useState<FlowFormData>(INITIAL_FORM)
   const [savedItemId, setSavedItemId] = useState<string | null>(null)
   const [aiError, setAiError] = useState<string | null>(null)
+  const [photoshoot, setPhotoshoot] = useState<PhotoshootState>(IDLE_PHOTOSHOOT)
+  const [photoSave, setPhotoSave] = useState<PhotoSaveStatus>('idle')
+  const photoshootRun = useRef<Promise<File[]> | null>(null)
+
+  const startPhotoshoot = useCallback(
+    (sourceFiles: File[]) => {
+      setPhotoshoot({ status: 'loading', photos: [], error: null })
+
+      const run: Promise<File[]> = generatePhotoshootImages(sourceFiles).then(
+        (generated) => {
+          if (photoshootRun.current === run) {
+            setPhotoshoot({
+              status: 'done',
+              photos: generated.map((file) => ({
+                file,
+                url: URL.createObjectURL(file),
+              })),
+              error: null,
+            })
+          }
+          return generated
+        },
+        (err: unknown) => {
+          if (photoshootRun.current === run) {
+            setPhotoshoot({
+              status: 'error',
+              photos: [],
+              error: err instanceof Error ? err.message : 'Errore sconosciuto',
+            })
+          }
+          return []
+        },
+      )
+
+      photoshootRun.current = run
+      return run
+    },
+    [],
+  )
 
   const handlePhotos = useCallback(async (selectedFiles: File[]) => {
     const compressed = await Promise.all(selectedFiles.map(compressImage))
@@ -62,6 +140,7 @@ export default function NewItemFlowPage() {
 
     setStep('analyzing')
     setAiError(null)
+    void startPhotoshoot(compressed)
 
     try {
       const result = await analyzeItemPhotos(compressed)
@@ -86,7 +165,37 @@ export default function NewItemFlowPage() {
       setStep('photos')
       toast(msg, 'error')
     }
-  }, [])
+  }, [startPhotoshoot])
+
+  const savePhotos = useCallback(
+    async (itemId: string) => {
+      setPhotoSave('saving')
+      const realSaved = await uploadPhotos(itemId, files, 'real', 0)
+      const generated = (await photoshootRun.current) ?? []
+      const generatedSaved = await uploadPhotos(
+        itemId,
+        generated,
+        'generated',
+        files.length,
+      )
+      setPhotoSave(realSaved && generatedSaved ? 'saved' : 'error')
+    },
+    [files],
+  )
+
+  const handleRetryPhotoshoot = useCallback(async () => {
+    const generated = await startPhotoshoot(files)
+    if (!savedItemId || generated.length === 0) return
+
+    setPhotoSave('saving')
+    const saved = await uploadPhotos(
+      savedItemId,
+      generated,
+      'generated',
+      files.length,
+    )
+    setPhotoSave(saved ? 'saved' : 'error')
+  }, [startPhotoshoot, files, savedItemId])
 
   const handleFormSubmit = useCallback(
     async (data: FlowFormData) => {
@@ -128,15 +237,18 @@ export default function NewItemFlowPage() {
         setFormData(data)
         setStep('ready')
         toast('Articolo creato!', 'success')
+        void savePhotos(result.data.id)
       } catch {
         toast('Errore nel salvataggio', 'error')
       }
     },
-    [user, createItem],
+    [user, createItem, savePhotos],
   )
 
   const handleStartOver = useCallback(() => {
     previews.forEach(URL.revokeObjectURL)
+    photoshoot.photos.forEach((photo) => URL.revokeObjectURL(photo.url))
+    photoshootRun.current = null
     setStep('photos')
     setFiles([])
     setPreviews([])
@@ -144,7 +256,9 @@ export default function NewItemFlowPage() {
     setFormData(INITIAL_FORM)
     setSavedItemId(null)
     setAiError(null)
-  }, [previews])
+    setPhotoshoot(IDLE_PHOTOSHOOT)
+    setPhotoSave('idle')
+  }, [previews, photoshoot.photos])
 
   return (
     <div className="space-y-6">
@@ -208,6 +322,9 @@ export default function NewItemFlowPage() {
         <ReadyStep
           formData={formData}
           itemId={savedItemId}
+          photoshoot={photoshoot}
+          photoSave={photoSave}
+          onRetryPhotoshoot={handleRetryPhotoshoot}
           onNewItem={handleStartOver}
           onViewItem={() => navigate(`/items/${savedItemId}`)}
         />

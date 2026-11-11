@@ -9,6 +9,21 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
+      workbox: {
+        globIgnores: ['**/*.wasm', '**/ort.*'],
+        runtimeCaching: [
+          {
+            // Background-removal model (~95 MB): the CDN only caches it for 4 hours
+            urlPattern: /^https:\/\/staticimgly\.com\//,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'background-removal-model',
+              expiration: { maxEntries: 80 },
+              cacheableResponse: { statuses: [200] },
+            },
+          },
+        ],
+      },
       manifest: {
         name: 'SellBro',
         short_name: 'SellBro',

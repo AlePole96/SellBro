@@ -154,7 +154,7 @@ export function SmartFormStep({
           <textarea
             value={formData.description}
             onChange={(e) => update({ description: e.target.value })}
-            rows={3}
+            rows={7}
             className="w-full resize-none bg-transparent text-sm text-content outline-none placeholder:text-faint"
             placeholder="Descrizione dell'articolo"
           />

@@ -8,6 +8,44 @@ export interface PhotoWithUrl extends Photo {
   url: string
 }
 
+export async function uploadItemPhoto(
+  itemId: string,
+  file: File,
+  photoType: PhotoType,
+  position: number,
+): Promise<{ photo: Photo | null; error: Error | null }> {
+  const compressed = await compressImage(file)
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return { photo: null, error: new Error('Not authenticated') }
+
+  const storagePath = `${user.id}/${itemId}/${crypto.randomUUID()}.jpg`
+
+  const { error: uploadError } = await supabase.storage
+    .from('item-photos')
+    .upload(storagePath, compressed, { contentType: 'image/jpeg' })
+
+  if (uploadError) return { photo: null, error: new Error(uploadError.message) }
+
+  const { data, error: insertError } = await supabase
+    .from('photos')
+    .insert({
+      item_id: itemId,
+      user_id: user.id,
+      storage_path: storagePath,
+      position,
+      photo_type: photoType,
+    })
+    .select()
+    .single()
+
+  if (insertError) return { photo: null, error: new Error(insertError.message) }
+
+  return { photo: data as Photo, error: null }
+}
+
 export function usePhotos(itemId: string | undefined) {
   const [photos, setPhotos] = useState<PhotoWithUrl[]>([])
   const [loading, setLoading] = useState(true)
@@ -55,48 +93,24 @@ export function usePhotos(itemId: string | undefined) {
 
       setUploading(true)
       try {
-        const compressed = await compressImage(file)
-
-        const {
-          data: { user },
-        } = await supabase.auth.getUser()
-        if (!user) return { error: new Error('Not authenticated') }
-
-        const fileName = `${crypto.randomUUID()}.jpg`
-        const storagePath = `${user.id}/${itemId}/${fileName}`
-
-        const { error: uploadError } = await supabase.storage
-          .from('item-photos')
-          .upload(storagePath, compressed, {
-            contentType: 'image/jpeg',
-          })
-
-        if (uploadError) return { error: uploadError }
-
-        const { data: photoData, error: insertError } = await supabase
-          .from('photos')
-          .insert({
-            item_id: itemId,
-            user_id: user.id,
-            storage_path: storagePath,
-            position: photos.length,
-            photo_type: photoType,
-          })
-          .select()
-          .single()
-
-        if (insertError) return { error: insertError }
+        const { photo, error } = await uploadItemPhoto(
+          itemId,
+          file,
+          photoType,
+          photos.length,
+        )
+        if (error || !photo) {
+          return { error: error ?? new Error('Caricamento non riuscito') }
+        }
 
         const { data: signedData } = await supabase.storage
           .from('item-photos')
-          .createSignedUrl(storagePath, 3600)
+          .createSignedUrl(photo.storage_path, 3600)
 
-        const newPhoto: PhotoWithUrl = {
-          ...(photoData as Photo),
-          url: signedData?.signedUrl ?? '',
-        }
-
-        setPhotos((prev) => [...prev, newPhoto])
+        setPhotos((prev) => [
+          ...prev,
+          { ...photo, url: signedData?.signedUrl ?? '' },
+        ])
         return { error: null }
       } finally {
         setUploading(false)
